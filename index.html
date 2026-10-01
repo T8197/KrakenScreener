@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kraken Momentum Screener</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control rail (weights + filters) beside a dense, sticky-header screener table; stacks on narrow screens */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#131820; --muted:#5b6673; --line:#d5dbe2; --soft:#e6eaef;
+  --accent:#0c7486; --accent-ink:#ffffff; --up:#13805b; --down:#c2373b; --warn:#a86a06;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1116; --panel:#141a21; --ink:#e3e8ee; --muted:#8d98a6; --line:#26303b; --soft:#1b222b;
+  --accent:#3db4c4; --accent-ink:#0a1216; --up:#3fcf94; --down:#ff6f6f; --warn:#e2a93b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1116; --panel:#141a21; --ink:#e3e8ee; --muted:#8d98a6; --line:#26303b; --soft:#1b222b;
+  --accent:#3db4c4; --accent-ink:#0a1216; --up:#3fcf94; --down:#ff6f6f; --warn:#e2a93b; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body);padding-inline:16px;padding-block:16px 32px}
+.wrap{max-width:1680px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font:700 26px/1.1 var(--f-display);letter-spacing:.01em;margin:0;text-wrap:balance}
+h1 small{display:block;font:500 13px/1.3 var(--f-body);color:var(--muted);letter-spacing:0;margin-top:4px}
+.status{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font:13px var(--f-num);color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:6px;vertical-align:1px}
+.dot.live{background:var(--up);box-shadow:0 0 0 3px color-mix(in srgb,var(--up) 25%,transparent)}
+.dot.err{background:var(--down)}
+.prog{display:inline-flex;align-items:center;gap:8px}
+.prog .bar{width:120px;height:6px;background:var(--soft);border-radius:3px;overflow:hidden}
+.prog .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .4s}
+.banner{background:color-mix(in srgb,var(--down) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--down) 40%,var(--line));color:var(--ink);padding:10px 14px;border-radius:6px;font-size:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;min-width:0}
+.kpi b{display:block;font:500 11px/1.2 var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.kpi span{font:500 19px/1.4 var(--f-num);font-variant-numeric:tabular-nums}
+.main{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:900px){.main{grid-template-columns:minmax(0,1fr)}}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:16px;min-width:0}
+aside h2{font:600 12px/1.2 var(--f-display);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0 0 8px}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+button,.chip{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:4px;padding:5px 9px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.w{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;margin-bottom:10px}
+.w label{font-weight:500;font-size:14px}
+.w output{font:13px var(--f-num);color:var(--muted);min-width:3ch;text-align:right}
+.w input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+.w .inv{grid-column:1/-1;font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.f{display:flex;flex-direction:column;gap:8px;font-size:14px}
+.f input[type=search],.f select{width:100%;font:14px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
+.f .row{display:flex;gap:6px;align-items:center}
+.note{font-size:12px;color:var(--muted);line-height:1.45}
+.tablebox{background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:auto;max-height:calc(100vh - 140px);min-width:0}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}
+th,td{padding:6px 10px;white-space:nowrap;border-bottom:1px solid var(--line);text-align:right}
+th{position:sticky;top:0;z-index:2;background:var(--panel);font:600 11.5px/1.2 var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);cursor:pointer;user-select:none;vertical-align:bottom}
+th:hover{color:var(--ink)}
+th.sorted{color:var(--accent)}
+th .ar{font-family:var(--f-num)}
+td{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+th.l,td.l{text-align:left}
+td.coin,th.coin{position:sticky;left:0;background:var(--panel);z-index:1}
+th.coin{z-index:3}
+td.coin{font-family:var(--f-body);font-weight:600}
+td.coin small{display:block;font:400 11px var(--f-num);color:var(--muted)}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--soft)}
+tr.open td{background:var(--soft)}
+.up{color:var(--up)}.dn{color:var(--down)}.mu{color:var(--muted)}
+.score{display:inline-flex;align-items:center;gap:8px}
+.score i{display:inline-block;width:54px;height:6px;background:var(--soft);border-radius:3px;overflow:hidden;position:relative}
+.score i::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--w);background:var(--accent)}
+.score.prov{opacity:.55}
+.pill{display:inline-block;font:500 11px var(--f-num);padding:1px 6px;border-radius:9px;border:1px solid var(--line)}
+.pill.hot{border-color:color-mix(in srgb,var(--up) 50%,var(--line));color:var(--up)}
+.pill.cold{border-color:color-mix(in srgb,var(--down) 50%,var(--line));color:var(--down)}
+.pill.warm{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,var(--line))}
+.detail td{background:var(--bg);text-align:left;white-space:normal;cursor:default}
+.dgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:18px;padding:6px 0;max-width:1100px}
+@media (max-width:700px){.dgrid{grid-template-columns:minmax(0,1fr)}}
+.fbar{display:grid;grid-template-columns:120px 1fr 3ch;gap:8px;align-items:center;font:13px var(--f-body);margin-bottom:6px}
+.fbar i{height:8px;background:var(--soft);border-radius:4px;position:relative;overflow:hidden}
+.fbar i::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--w);background:var(--accent)}
+.fbar span{font-family:var(--f-num);text-align:right;color:var(--muted)}
+svg text{font:11px var(--f-num);fill:var(--muted)}
+.empty{padding:40px;text-align:center;color:var(--muted);font-family:var(--f-body)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Kraken Momentum Screener<small>Every USD spot pair on Kraken, scored on momentum, relative strength vs BTC, volume, market cap and distance from the 90-day high.</small></h1>
+    <div class="status">
+      <span id="live"><span class="dot" id="dot"></span><span id="liveTxt">Connecting to Kraken…</span></span>
+      <span class="prog" title="Daily candles are fetched one pair per second to respect Kraken's public rate limit, most-traded first. They are cached for 4 hours."><span id="progTxt">History 0/0</span><span class="bar"><i id="progBar"></i></span></span>
+      <span id="mcTxt">Market caps: loading</span>
+      <button id="themeBtn" type="button" title="Switch light / dark">Theme</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="kpis" id="kpis"></section>
+
+  <div class="main">
+    <aside>
+      <div>
+        <h2>Score weights</h2>
+        <div class="presets" id="presets"></div>
+      </div>
+      <div id="weights"></div>
+      <div>
+        <h2>Filters</h2>
+        <div class="f">
+          <label for="cur">Currency</label>
+          <select id="cur">
+            <option value="USD">US dollar ($)</option>
+            <option value="EUR">Euro (€)</option>
+          </select>
+          <input type="search" id="q" placeholder="Search coin, e.g. SOL" aria-label="Search coin">
+          <label for="minVol">Min 24h volume</label>
+          <select id="minVol">
+            <option value="0">Any</option>
+            <option value="100000">100K</option>
+            <option value="1000000" selected>1M</option>
+            <option value="10000000">10M</option>
+            <option value="50000000">50M</option>
+          </select>
+          <label class="row"><input type="checkbox" id="hideStable" checked> Hide stablecoins &amp; fiat</label>
+          <label class="row"><input type="checkbox" id="onlyHist"> Only coins with 90-day history loaded</label>
+        </div>
+      </div>
+      <p class="note">Each factor is turned into a percentile (0–100) across the coins on screen, then blended with your weights. "Invert" flips a factor, e.g. to favour small caps or coins far below their high. Rows in grey are provisional until their price history arrives. Market caps come from CoinGecko, matched by ticker symbol. Not investment advice.</p>
+    </aside>
+
+    <div class="tablebox" id="tablebox">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"><tr><td class="empty" colspan="17">Loading Kraken pairs…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const API = "https://api.kraken.com/0/public/";
+const CG = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=";
+const ALIAS = {XBT:"BTC", XDG:"DOGE"};
+const STABLE = new Set(["USDT","USDC","DAI","PYUSD","TUSD","USDP","USDS","USDG","RLUSD","FDUSD","USDE","EURC","EURT","EURR","USDQ","USDR","GUSD","USD1","UST","USDD","FRAX","LUSD","EUROP","AUDX","TGBP"]);
+const FIAT = new Set(["EUR","GBP","CHF","AUD","CAD","JPY","USD","AED","NZD"]);
+const OHLC_TTL = 4*3600e3, MC_TTL = 12*3600e3, TICK_MS = 60e3, GAP_MS = 1050;
+
+const FACTORS = [
+  {k:"mom",  label:"Momentum",           hint:"Blend of 7d (20%), 30d (40%) and 90d (40%) returns"},
+  {k:"rs",   label:"Relative strength",  hint:"Average of 30d and 90d return minus BTC's"},
+  {k:"vol",  label:"Volume",             hint:"7-day average USD volume (24h volume until history loads)"},
+  {k:"mcap", label:"Market cap",         hint:"CoinGecko market cap, by ticker"},
+  {k:"high", label:"Near 90d high",      hint:"How close price is to its 90-day high"}
+];
+const PRESETS = {
+  "Balanced":   {mom:30, rs:25, vol:15, mcap:10, high:20},
+  "Momentum":   {mom:45, rs:30, vol:10, mcap:0,  high:15},
+  "Breakout":   {mom:20, rs:20, vol:20, mcap:0,  high:40},
+  "Large caps": {mom:20, rs:15, vol:25, mcap:40, high:0},
+  "Laggards":   {mom:25, rs:0,  vol:25, mcap:20, high:30, inv:{high:true}}
+};
+
+const store = {
+  get(k){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+const S = {
+  coins: [], byKey: {}, btc: null,
+  weights: {...PRESETS.Balanced}, inv: {},
+  sort: {key:"score", dir:-1}, open: null,
+  histDone: 0, histTotal: 0, mcap: null, cur: "EUR"
+};
+const saved = store.get("ks:prefs");
+if (saved){ Object.assign(S.weights, saved.weights||{}); S.inv = saved.inv||{}; if (saved.sort) S.sort = saved.sort; if (saved.cur) S.cur = saved.cur; }
+const savePrefs = () => store.set("ks:prefs", {weights:S.weights, inv:S.inv, sort:S.sort, cur:S.cur});
+const SYM = () => S.cur === "EUR" ? "€" : "$";
+/* EUR/USD from Kraken's own ZEURZUSD pair: USD price ÷ rate = EUR price */
+const fxPair = () => S.byKey["ZEURZUSD"] || S.coins.find(c => c.sym === "EUR") || null;
+function fxNow(){ if (S.cur !== "EUR") return 1; const f = fxPair(); return f && f.uLast ? f.uLast : null; }
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function kraken(path){
+  for (let attempt = 0; attempt < 4; attempt++){
+    const r = await fetch(API + path);
+    const j = await r.json();
+    if (j.error && j.error.length){
+      if (j.error.join().includes("Rate limit")) { await sleep(6000 * (attempt+1)); continue; }
+      throw new Error(j.error.join(", "));
+    }
+    return j.result;
+  }
+  throw new Error("Kraken rate limit kept hitting");
+}
+
+function showError(msg){ const b = $("banner"); b.textContent = msg; b.hidden = false; }
+
+/* ---------- formatting ---------- */
+function fmtPrice(x){
+  if (x == null || !isFinite(x)) return "—";
+  if (x >= 1000) return x.toLocaleString("en-US",{maximumFractionDigits:0});
+  if (x >= 1) return x.toFixed(x >= 100 ? 2 : 3);
+  const d = Math.min(8, Math.max(4, 2 - Math.floor(Math.log10(x)) + 2));
+  return x.toFixed(d);
+}
+function fmtUsd(x){
+  if (x == null || !isFinite(x)) return "—";
+  const a = Math.abs(x);
+  const s = SYM();
+  if (a >= 1e12) return s + (x/1e12).toFixed(2) + "T";
+  if (a >= 1e9) return s + (x/1e9).toFixed(2) + "B";
+  if (a >= 1e6) return s + (x/1e6).toFixed(1) + "M";
+  if (a >= 1e3) return s + (x/1e3).toFixed(0) + "K";
+  return s + x.toFixed(0);
+}
+function fmtPct(x, signed = true){
+  if (x == null || !isFinite(x)) return '<span class="mu">—</span>';
+  const v = (x*100), cls = v > 0 ? "up" : v < 0 ? "dn" : "mu";
+  return `<span class="${cls}">${signed && v > 0 ? "+" : ""}${v.toFixed(Math.abs(v) >= 100 ? 0 : 1)}%</span>`;
+}
+
+/* ---------- metrics ---------- */
+function rsi(c, n = 14){
+  if (c.length < n + 1) return null;
+  let g = 0, l = 0;
+  for (let i = 1; i <= n; i++){ const d = c[i]-c[i-1]; if (d > 0) g += d; else l -= d; }
+  g /= n; l /= n;
+  for (let i = n+1; i < c.length; i++){
+    const d = c[i]-c[i-1];
+    g = (g*(n-1) + Math.max(d,0)) / n;
+    l = (l*(n-1) + Math.max(-d,0)) / n;
+  }
+  if (l === 0) return 100;
+  return 100 - 100/(1 + g/l);
+}
+function blend(parts){
+  let s = 0, w = 0;
+  for (const [v, wt] of parts) if (v != null && isFinite(v)) { s += v*wt; w += wt; }
+  return w ? s/w : null;
+}
+function computeOwn(c){
+  // Raw Kraken data is in USD (uLast, uOpen, uVol24, hist). Convert to the chosen currency here.
+  const eur = S.cur === "EUR", f = fxPair();
+  const fx = eur ? (f && f.uLast) || null : 1;
+  const fxOpen = eur ? (f && f.uOpen) || fx : 1;
+  c.last = c.uLast != null && fx ? c.uLast / fx : null;
+  c.chgD = c.uOpen && fxOpen && c.last != null ? c.last / (c.uOpen / fxOpen) - 1 : null;
+  c.vol24 = c.uVol24 != null && fx ? c.uVol24 / fx : null;
+  c.vol = c.vol24;
+  c.r7 = c.r30 = c.r90 = c.hi90 = c.dist = c.vol7 = c.vol30 = c.vtrend = c.rsi = c.mom = c.spark = null;
+  if (!c.hist || c.last == null) return;
+  const H = c.hist, n = H.c.length;
+  // Daily EUR/USD closes, aligned from the most recent day backwards; falls back to today's rate.
+  const fs = eur && f && f.hist ? f.hist.c : null;
+  const fxAt = i => { if (!eur) return 1; if (fs){ const j = fs.length - (n - i); if (j >= 0 && fs[j]) return fs[j]; } return fx; };
+  const closes = H.c.map((v,i) => v / fxAt(i)); closes[n-1] = c.last;
+  const last = c.last;
+  const ret = N => n > N ? last / closes[n-1-N] - 1 : null;
+  c.r7 = ret(7); c.r30 = ret(30); c.r90 = ret(90);
+  const highs = H.h.map((v,i) => v / fxAt(i)).slice(-91);
+  c.hi90 = Math.max(...highs, last);
+  c.dist = last / c.hi90 - 1;
+  const vols = H.v.map((v,i) => v * closes[i]);
+  const done = vols.slice(0, -1);
+  const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+  c.vol7 = mean(done.slice(-7)); c.vol30 = mean(done.slice(-30));
+  c.vtrend = c.vol7 && c.vol30 ? c.vol7 / c.vol30 : null;
+  if (c.vol7) c.vol = c.vol7;
+  c.rsi = rsi(closes.slice(-60));
+  c.mom = blend([[c.r7,.2],[c.r30,.4],[c.r90,.4]]);
+  c.spark = closes.slice(-91);
+}
+function computeRelative(){
+  const b = S.btc;
+  for (const c of S.coins){
+    c.rs = (b && c.hist) ? blend([[c.r30 != null && b.r30 != null ? c.r30 - b.r30 : null, .5],
+                                   [c.r90 != null && b.r90 != null ? c.r90 - b.r90 : null, .5]]) : null;
+    c.mcap = S.mcap && S.mcap[c.sym] != null ? S.mcap[c.sym] / (fxNow() || 1) : null;
+  }
+}
+function percentiles(list, get){
+  const vals = list.map(c => [c, get(c)]).filter(([,v]) => v != null && isFinite(v));
+  vals.sort((a,b) => a[1]-b[1]);
+  const out = new Map(), n = vals.length;
+  let i = 0;
+  while (i < n){
+    let j = i; while (j+1 < n && vals[j+1][1] === vals[i][1]) j++;
+    const p = n > 1 ? ((i+j)/2) / (n-1) * 100 : 50;
+    for (let k = i; k <= j; k++) out.set(vals[k][0], p);
+    i = j+1;
+  }
+  return out;
+}
+function scoreAll(list){
+  const getters = {
+    mom: c => c.mom, rs: c => c.rs,
+    vol: c => c.vol ? Math.log(c.vol) : null,
+    mcap: c => c.mcap ? Math.log(c.mcap) : null,
+    high: c => c.dist
+  };
+  const P = {};
+  for (const f of FACTORS) P[f.k] = percentiles(list, getters[f.k]);
+  for (const c of list){
+    c.pct = {}; let s = 0, w = 0;
+    for (const f of FACTORS){
+      let p = P[f.k].get(c);
+      if (p == null) { c.pct[f.k] = null; continue; }
+      if (S.inv[f.k]) p = 100 - p;
+      c.pct[f.k] = p;
+      const wt = S.weights[f.k] || 0;
+      s += p*wt; w += wt;
+    }
+    c.score = w ? s/w : null;
+    c.prov = !c.hist;
+  }
+}
+
+/* ---------- table ---------- */
+const COLS = [
+  {k:"rank",  t:"#",              l:true, nosort:true},
+  {k:"sym",   t:"Coin",           l:true, cls:"coin"},
+  {k:"score", t:"Score"},
+  {k:"last",  t:"Price"},
+  {k:"chgD",  t:"Day %",          tip:"Change since 00:00 UTC"},
+  {k:"r7",    t:"7d %"},
+  {k:"r30",   t:"30d %"},
+  {k:"r90",   t:"90d %"},
+  {k:"mom",   t:"Momentum",       tip:FACTORS[0].hint},
+  {k:"rs",    t:"RS vs BTC",      tip:FACTORS[1].hint + " (percentage points)"},
+  {k:"rsi",   t:"RSI 14"},
+  {k:"vol24", t:"24h vol"},
+  {k:"vtrend",t:"Vol trend",      tip:"7-day average volume ÷ 30-day average"},
+  {k:"mcap",  t:"Mkt cap"},
+  {k:"dist",  t:"From 90d high"},
+  {k:"spark", t:"90 days", nosort:true, l:true}
+];
+function renderHead(){
+  $("thead").innerHTML = COLS.map(c => {
+    const on = S.sort.key === c.k;
+    const ar = on ? (S.sort.dir < 0 ? " ▾" : " ▴") : "";
+    return `<th data-k="${c.k}" class="${c.l?"l ":""}${c.cls||""}${on?" sorted":""}" ${c.tip?`title="${esc(c.tip)}"`:""} ${c.nosort?"":'tabindex="0"'}>${c.t}<span class="ar">${ar}</span></th>`;
+  }).join("");
+}
+function spark(c, w = 96, h = 24){
+  const a = c.spark; if (!a || a.length < 2) return '<span class="mu">—</span>';
+  const mn = Math.min(...a), mx = Math.max(...a), r = mx - mn || 1;
+  const pts = a.map((v,i) => `${(i/(a.length-1)*w).toFixed(1)},${(h - 2 - (v-mn)/r*(h-4)).toFixed(1)}`).join(" ");
+  const col = a[a.length-1] >= a[0] ? "var(--up)" : "var(--down)";
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline fill="none" stroke="${col}" stroke-width="1.4" points="${pts}"/></svg>`;
+}
+function bigChart(c){
+  const a = c.spark; if (!a || a.length < 2) return '<p class="note">Price history not loaded yet.</p>';
+  const W = 640, Hh = 180, padL = 8, padR = 70, padT = 10, padB = 18;
+  const mn = Math.min(...a), mx = Math.max(c.hi90 ?? 0, ...a), r = mx - mn || 1;
+  const x = i => padL + i/(a.length-1)*(W-padL-padR);
+  const y = v => padT + (1 - (v-mn)/r)*(Hh-padT-padB);
+  const line = a.map((v,i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${x(0)},${Hh-padB} ${line} ${x(a.length-1)},${Hh-padB}`;
+  const col = a[a.length-1] >= a[0] ? "var(--up)" : "var(--down)";
+  return `<svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="90 day price chart for ${esc(c.sym)}">
+    <line x1="${padL}" x2="${W-padR}" y1="${y(mx)}" y2="${y(mx)}" stroke="var(--line)" stroke-dasharray="4 3"/>
+    <text x="${W-padR+6}" y="${y(mx)+4}">90d high ${fmtPrice(c.hi90)}</text>
+    <line x1="${padL}" x2="${W-padR}" y1="${y(mn)}" y2="${y(mn)}" stroke="var(--line)"/>
+    <text x="${W-padR+6}" y="${y(mn)+4}">low ${fmtPrice(mn)}</text>
+    <polygon points="${area}" fill="${col}" opacity=".10"/>
+    <polyline points="${line}" fill="none" stroke="${col}" stroke-width="1.8"/>
+    <circle cx="${x(a.length-1)}" cy="${y(a[a.length-1])}" r="3.5" fill="${col}"/>
+    <text x="${padL}" y="${Hh-3}">${a.length-1} days ago</text>
+    <text x="${W-padR}" y="${Hh-3}" text-anchor="end">today</text>
+  </svg>`;
+}
+function rsiPill(v){
+  if (v == null) return '<span class="mu">—</span>';
+  const cls = v >= 70 ? "hot" : v <= 30 ? "cold" : "";
+  return `<span class="pill ${cls}">${v.toFixed(0)}</span>`;
+}
+function distPill(d){
+  if (d == null) return '<span class="mu">—</span>';
+  const cls = d >= -0.05 ? "hot" : d >= -0.25 ? "warm" : "cold";
+  return `<span class="pill ${cls}">${(d*100).toFixed(1)}%</span>`;
+}
+
+let pending = false;
+function scheduleRender(){ if (pending) return; pending = true; setTimeout(() => { pending = false; render(); }, 400); }
+
+function visible(){
+  const q = $("q").value.trim().toUpperCase();
+  const minVol = +$("minVol").value;
+  const hide = $("hideStable").checked, only = $("onlyHist").checked;
+  return S.coins.filter(c =>
+    (!q || c.sym.includes(q) || c.alt.includes(q)) &&
+    (c.vol24 ?? 0) >= minVol &&
+    !(hide && (STABLE.has(c.sym) || FIAT.has(c.sym))) &&
+    !(only && !c.hist));
+}
+
+function render(){
+  for (const c of S.coins) computeOwn(c);
+  computeRelative();
+  const list = visible();
+  scoreAll(list);
+  const {key, dir} = S.sort;
+  list.sort((a,b) => {
+    if (key === "sym") return dir * a.sym.localeCompare(b.sym);
+    const av = a[key], bv = b[key];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1; if (bv == null) return -1;
+    return dir * (av - bv);
+  });
+  renderHead();
+  if (!list.length){ $("tbody").innerHTML = `<tr><td class="empty" colspan="${COLS.length}">No coins match these filters.</td></tr>`; renderKpis(list); return; }
+  const rows = [];
+  list.forEach((c, i) => {
+    rows.push(`<tr data-key="${esc(c.key)}" class="${S.open===c.key?"open":""}">
+      <td class="l mu">${i+1}</td>
+      <td class="l coin">${esc(c.sym)}<small>${esc(c.wsname)}</small></td>
+      <td><span class="score${c.prov?" prov":""}" title="${c.prov?"Provisional: waiting for price history":""}">${c.score==null?"—":c.score.toFixed(0)}<i style="--w:${(c.score??0).toFixed(0)}%"></i></span></td>
+      <td>${fmtPrice(c.last)}</td>
+      <td>${fmtPct(c.chgD)}</td>
+      <td>${fmtPct(c.r7)}</td>
+      <td>${fmtPct(c.r30)}</td>
+      <td>${fmtPct(c.r90)}</td>
+      <td>${fmtPct(c.mom)}</td>
+      <td>${c.rs==null?'<span class="mu">—</span>':`<span class="${c.rs>0?"up":"dn"}">${c.rs>0?"+":""}${(c.rs*100).toFixed(1)}</span>`}</td>
+      <td>${rsiPill(c.rsi)}</td>
+      <td>${fmtUsd(c.vol24)}</td>
+      <td>${c.vtrend==null?'<span class="mu">—</span>':`<span class="${c.vtrend>=1.2?"up":c.vtrend<=0.8?"dn":""}">${c.vtrend.toFixed(2)}×</span>`}</td>
+      <td>${fmtUsd(c.mcap)}</td>
+      <td>${distPill(c.dist)}</td>
+      <td class="l">${spark(c)}</td>
+    </tr>`);
+    if (S.open === c.key){
+      const bars = FACTORS.map(f => `<div class="fbar"><span style="text-align:left;color:var(--ink)">${f.label}${S.inv[f.k]?" (inv.)":""}</span><i style="--w:${(c.pct[f.k]??0).toFixed(0)}%"></i><span>${c.pct[f.k]==null?"—":c.pct[f.k].toFixed(0)}</span></div>`).join("");
+      rows.push(`<tr class="detail"><td colspan="${COLS.length}"><div class="dgrid"><div style="min-width:0">${bigChart(c)}</div><div><b style="font:600 12px var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Factor percentiles</b><div style="margin-top:8px">${bars}</div><p class="note">Pair ${esc(c.wsname)} · 90d high ${fmtPrice(c.hi90)} · 7d avg volume ${fmtUsd(c.vol7)} · <a href="https://pro.kraken.com/app/trade/${esc(c.wsname.replace("/","-").toLowerCase())}" target="_blank" rel="noopener" style="color:var(--accent)">Open on Kraken Pro</a></p></div></div></td></tr>`);
+    }
+  });
+  $("tbody").innerHTML = rows.join("");
+  renderKpis(list);
+}
+
+function renderKpis(list){
+  const withH = list.filter(c => c.hist);
+  const med = a => { const s = a.filter(v => v != null).sort((x,y)=>x-y); return s.length ? s[Math.floor(s.length/2)] : null; };
+  const pos30 = withH.filter(c => c.r30 != null);
+  const breadth = pos30.length ? pos30.filter(c => c.r30 > 0).length / pos30.length : null;
+  const nearHigh = withH.filter(c => c.dist != null && c.dist >= -0.05).length;
+  const b = S.btc;
+  const k = [
+    ["Coins on screen", list.length.toString()],
+    ["BTC 30d", b && b.r30 != null ? fmtPct(b.r30) : "—"],
+    ["Up over 30d", breadth == null ? "—" : (breadth*100).toFixed(0) + "%"],
+    ["Within 5% of 90d high", withH.length ? nearHigh.toString() : "—"],
+    ["Median from 90d high", (() => { const m = med(withH.map(c => c.dist)); return m == null ? "—" : (m*100).toFixed(1) + "%"; })()],
+    ["Total 24h volume", fmtUsd(list.reduce((s,c) => s + (c.vol24||0), 0))]
+  ];
+  $("kpis").innerHTML = k.map(([a,v]) => `<div class="kpi"><b>${a}</b><span>${v}</span></div>`).join("");
+}
+
+/* ---------- controls ---------- */
+function renderWeights(){
+  $("weights").innerHTML = FACTORS.map(f => `
+    <div class="w" title="${esc(f.hint)}">
+      <label for="w_${f.k}">${f.label}</label><output id="o_${f.k}">${S.weights[f.k]}</output>
+      <input type="range" id="w_${f.k}" min="0" max="100" step="5" value="${S.weights[f.k]}">
+      <label class="inv"><input type="checkbox" id="i_${f.k}" ${S.inv[f.k]?"checked":""}> Invert</label>
+    </div>`).join("");
+  for (const f of FACTORS){
+    $("w_"+f.k).addEventListener("input", e => { S.weights[f.k] = +e.target.value; $("o_"+f.k).textContent = e.target.value; markPreset(); savePrefs(); scheduleRender(); });
+    $("i_"+f.k).addEventListener("change", e => { S.inv[f.k] = e.target.checked; markPreset(); savePrefs(); scheduleRender(); });
+  }
+}
+function markPreset(){
+  for (const b of document.querySelectorAll("#presets button")){
+    const p = PRESETS[b.textContent];
+    const same = FACTORS.every(f => p[f.k] === S.weights[f.k] && !!(p.inv||{})[f.k] === !!S.inv[f.k]);
+    b.classList.toggle("on", same);
+  }
+}
+$("presets").innerHTML = Object.keys(PRESETS).map(n => `<button type="button">${n}</button>`).join("");
+$("presets").addEventListener("click", e => {
+  const n = e.target.textContent, p = PRESETS[n]; if (!p || e.target.tagName !== "BUTTON") return;
+  for (const f of FACTORS) S.weights[f.k] = p[f.k];
+  S.inv = {...(p.inv||{})};
+  renderWeights(); markPreset(); savePrefs(); render();
+});
+$("thead").addEventListener("click", e => sortBy(e.target.closest("th")));
+$("thead").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sortBy(e.target.closest("th")); } });
+function sortBy(th){
+  if (!th) return; const k = th.dataset.k; const col = COLS.find(c => c.k === k);
+  if (!col || col.nosort) return;
+  S.sort = S.sort.key === k ? {key:k, dir:-S.sort.dir} : {key:k, dir: k === "sym" ? 1 : -1};
+  savePrefs(); render();
+}
+$("tbody").addEventListener("click", e => {
+  const tr = e.target.closest("tr[data-key]"); if (!tr || e.target.closest("a")) return;
+  S.open = S.open === tr.dataset.key ? null : tr.dataset.key; render();
+});
+for (const id of ["q","minVol","hideStable","onlyHist"]) $(id).addEventListener("input", scheduleRender);
+$("cur").value = S.cur;
+$("cur").addEventListener("change", e => { S.cur = e.target.value; savePrefs(); render(); });
+$("themeBtn").addEventListener("click", () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+});
+
+/* ---------- data loading ---------- */
+async function loadPairs(){
+  const res = await kraken("AssetPairs");
+  for (const [key, p] of Object.entries(res)){
+    if (key.endsWith(".d")) continue;
+    if (!(p.quote === "ZUSD" || p.quote === "USD")) continue;
+    if (p.status && p.status !== "online") continue;
+    const ws = p.wsname || p.altname;
+    let base = ws.split("/")[0];
+    const sym = ALIAS[base] || base;
+    const c = {key, alt:p.altname, wsname: ws.replace(/^XBT\//,"BTC/").replace(/^XDG\//,"DOGE/"), sym, hist:null};
+    S.coins.push(c); S.byKey[key] = c;
+  }
+  S.btc = S.coins.find(c => c.sym === "BTC") || null;
+}
+
+async function loadTicker(){
+  const keys = S.coins.map(c => c.key);
+  for (let i = 0; i < keys.length; i += 100){
+    const res = await kraken("Ticker?pair=" + keys.slice(i, i+100).join(","));
+    for (const [k, t] of Object.entries(res)){
+      const c = S.byKey[k]; if (!c) continue;
+      c.uLast = +t.c[0]; c.uOpen = +t.o;
+      c.uVol24 = (+t.v[1]) * (+t.p[1]);
+    }
+    if (i + 100 < keys.length) await sleep(400);
+  }
+  $("dot").className = "dot live";
+  $("liveTxt").textContent = "Live · prices " + new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"});
+}
+
+function setProgress(){
+  $("progTxt").textContent = `History ${S.histDone}/${S.histTotal}`;
+  $("progBar").style.width = (S.histTotal ? S.histDone/S.histTotal*100 : 0) + "%";
+}
+
+async function loadHistory(){
+  const order = S.coins.slice().sort((a,b) => (b.uVol24||0) - (a.uVol24||0));
+  for (const first of [fxPair(), S.btc]) if (first){ order.splice(order.indexOf(first), 1); order.unshift(first); }
+  S.histTotal = order.length; S.histDone = 0;
+  const today = Math.floor(Date.now()/86400e3);
+  const queue = [];
+  for (const c of order){
+    const cached = store.get("ks:o:" + c.key);
+    if (cached && Date.now() - cached.t < OHLC_TTL && Math.floor(cached.t/86400e3) === today){ c.hist = cached.d; S.histDone++; }
+    else queue.push(c);
+  }
+  setProgress(); scheduleRender();
+  for (const c of queue){
+    try{
+      const res = await kraken(`OHLC?pair=${c.key}&interval=1440`);
+      const rows = Object.entries(res).find(([k]) => k !== "last")?.[1] || [];
+      const tail = rows.slice(-92);
+      if (tail.length >= 2){
+        c.hist = {c: tail.map(r => +r[4]), h: tail.map(r => +r[2]), v: tail.map(r => +r[6])};
+        store.set("ks:o:" + c.key, {t: Date.now(), d: c.hist});
+      }
+    }catch(e){ /* skip this pair; it stays provisional */ }
+    S.histDone++; setProgress(); scheduleRender();
+    await sleep(GAP_MS);
+  }
+}
+
+async function loadMcap(){
+  const cached = store.get("ks:mcap");
+  if (cached && Date.now() - cached.t < MC_TTL){ S.mcap = cached.d; $("mcTxt").textContent = "Market caps: CoinGecko"; return; }
+  const map = {};
+  try{
+    for (let page = 1; page <= 4; page++){
+      const r = await fetch(CG + page);
+      if (!r.ok) throw new Error(r.status);
+      const arr = await r.json();
+      for (const x of arr){ const s = (x.symbol||"").toUpperCase(); if (x.market_cap && !(s in map)) map[s] = x.market_cap; }
+      await sleep(2500);
+    }
+    S.mcap = map; store.set("ks:mcap", {t: Date.now(), d: map});
+    $("mcTxt").textContent = "Market caps: CoinGecko";
+  }catch(e){
+    if (Object.keys(map).length) { S.mcap = map; $("mcTxt").textContent = "Market caps: partial"; }
+    else $("mcTxt").textContent = "Market caps: unavailable";
+  }
+  scheduleRender();
+}
+
+async function start(){
+  renderWeights(); markPreset(); renderHead();
+  try{
+    await loadPairs();
+    await loadTicker();
+    render();
+  }catch(e){
+    $("dot").className = "dot err"; $("liveTxt").textContent = "Offline";
+    showError("Couldn't reach Kraken's public API (" + e.message + "). Check your connection; if this page is open inside a sandboxed viewer, download it and open it directly in your browser.");
+    return;
+  }
+  loadMcap();
+  loadHistory();
+  setInterval(() => loadTicker().then(scheduleRender).catch(() => { $("dot").className = "dot err"; $("liveTxt").textContent = "Price refresh failed, retrying"; }), TICK_MS);
+}
+start();
+})();
+</script>
+</body>
+</html>
